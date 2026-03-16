@@ -1,5 +1,6 @@
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
+import streamlit as st
 
 class DataManager:
     def __init__(self, st_connection):
