@@ -14,6 +14,15 @@ class DataManager:
         except:
             return set()
 
+    def get_all_articles(self):
+        """获取所有已保存的文章"""
+        try:
+            df = self.conn.read(worksheet=self.sheet_name)
+            # 将DataFrame转换为字典列表，以便与文章结构匹配
+            return df.to_dict(orient='records')
+        except:
+            return []
+
     def save_new_articles(self, articles):
         """将 AI 筛选出的文章存入表格"""
         if not articles:

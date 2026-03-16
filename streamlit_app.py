@@ -66,6 +66,23 @@ with st.sidebar:
         st.text(f"• {k}")
 
 # 主执行逻辑
+# 在应用启动时加载已有的数据
+conn = st.connection("gsheets", type=GSheetsConnection)
+data_manager = DataManager(conn)
+
+# 获取并显示已保存的文章
+saved_articles = data_manager.get_all_articles()
+
+if saved_articles:
+    st.subheader(f"📖 已保存情报 ({len(saved_articles)})")
+    for art in saved_articles:
+        with st.expander(f"【{art['source']}】{art['title']}", expanded=False):
+            st.write(art['summary'][:300] + "...")
+            st.link_button("阅读全文", art['link'])
+else:
+    st.info("暂无已保存情报。点击下方按钮开始同步和筛选。")
+
+# 新文章筛选逻辑
 if st.button("🚀 立即同步并开始筛选", use_container_width=True):
     # 初始化数据管理器
     conn = st.connection("gsheets", type=GSheetsConnection)
