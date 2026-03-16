@@ -1,9 +1,15 @@
 import streamlit as st
 import feedparser
-import google.generativeai as genai
 import time
 import re
 from datetime import datetime
+import yaml
+from data_manager import DataManager
+from streamlit_gsheets import GSheetsConnection
+
+def load_config(config_path):
+    with open(config_path, 'r', encoding='utf-8') as file:
+        return yaml.safe_load(file)
 
 # --- 页面基础配置 ---
 st.set_page_config(page_title="游戏情报站", layout="wide", page_icon="🎮")
@@ -27,98 +33,77 @@ def fetch_rss_data(sources):
             st.warning(f"无法抓取 {source['name']}: {e}")
     return all_articles
 
-def ai_batch_judge(articles, api_key):
-    """AI 批量判定逻辑 (每 10 条一组)"""
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    relevant_articles = []
-    
-    # 分组处理
-    batch_size = 10
-    total_batches = (len(articles) + batch_size - 1) // batch_size
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-
-    for i in range(0, len(articles), batch_size):
-        batch = articles[i:i+batch_size]
-        status_text.text(f"🤖 AI 正在审核第 {i//batch_size + 1}/{total_batches} 组数据...")
-        
-        items_text = ""
-        for idx, art in enumerate(batch):
-            items_text += f"ID: {idx} | 标题: {art['title']} | 摘要: {art['summary'][:100]}\n"
-        
-        prompt = f"""
-        作为手游 UA 专家，请从以下新闻中筛选出与“移动端休闲游戏”（消除、合成、益智、模拟经营、超休闲、买量动态）相关的条目。
-        请直接输出相关的 ID 编号，用逗号分隔（例如：0, 2, 5）。如果都没有，请输出 "NONE"。
-        
-        待筛选列表：
-        {items_text}
-        """
-        
-        try:
-            response = model.generate_content(prompt)
-            res_text = response.text.strip().upper()
-            if "NONE" not in res_text:
-                ids = [int(n) for n in re.findall(r'\d+', res_text)]
-                for valid_id in ids:
-                    if valid_id < len(batch):
-                        relevant_articles.append(batch[valid_id])
-            
-            # 更新进度
-            progress_bar.progress((i + batch_size) / len(articles) if (i + batch_size) < len(articles) else 1.0)
-            time.sleep(4)  # 频率控制
-        except Exception as e:
-            st.error(f"AI 判定出错: {e}")
-            
-    return relevant_articles
+def keyword_filter_articles(articles, keywords):
+    """根据关键词筛选文章"""
+    filtered_articles = []
+    for article in articles:
+        # 检查标题和摘要是否包含任何关键词
+        title = article.get('title', '').lower()
+        summary = article.get('summary', '').lower()
+        if any(keyword.lower() in title or keyword.lower() in summary for keyword in keywords):
+            filtered_articles.append(article)
+    return filtered_articles
 
 # --- UI 界面 ---
 
-st.title("🎮 移动游戏市场智能观察哨")
-st.caption("基于 Gemini 1.5 Flash 的自动化情报筛选系统")
+st.title("🎮 移动游戏市场情报站")
+st.caption("基于关键词筛选的自动化情报系统")
 
 # 侧边栏配置
 with st.sidebar:
     st.header("配置中心")
-    # 默认从你之前的 config.yaml 逻辑中提取源
-    api_key_input = st.text_input("Gemini API Key", type="password", value="")
-    
+    config = load_config('config.yaml')
+    sources = config['rss_sources']
+    filter_keywords = config['filter_keywords']
+
     st.divider()
     st.subheader("📡 当前监测源")
-    # 这里建议直接列出你 config.yaml 里的源
-    sources = [
-        {"name": "机核网", "url": "https://www.gcores.com/rss"},
-        {"name": "indienova", "url": "https://indienova.com/itunes/blog/rss"},
-        {"name": "触乐", "url": "http://www.chuapp.com/feed"},
-        {"name": "PocketGamer", "url": "https://www.pocketgamer.com/rss"},
-        {"name": "Gamezebo", "url": "https://www.gamezebo.com/feed/"}
-    ]
     for s in sources:
         st.text(f"• {s['name']}")
 
+    st.subheader("🔍 当前关键词")
+    for k in filter_keywords:
+        st.text(f"• {k}")
+
 # 主执行逻辑
-if st.button("🚀 立即同步并开始 AI 筛选", use_container_width=True):
-    if not api_key_input:
-        st.error("请输入 API Key 以启动 AI 引擎")
-    else:
-        # 1. 抓取
-        with st.status("正在采集全球 RSS 资讯...", expanded=True) as status:
-            raw_data = fetch_rss_data(sources)
-            st.write(f"✅ 采集完成，共发现 {len(raw_data)} 条新内容。")
-            
-            # 2. 筛选
-            st.write("🧠 启动 AI 专家模式进行筛选...")
-            final_list = ai_batch_judge(raw_data, api_key_input)
+if st.button("🚀 立即同步并开始筛选", use_container_width=True):
+    # 初始化数据管理器
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    data_manager = DataManager(conn)
+
+    # 获取已处理的链接，用于去重
+    seen_links = data_manager.get_seen_links()
+
+    # 1. 抓取
+    with st.status("正在采集全球 RSS 资讯...", expanded=True) as status:
+        raw_data = fetch_rss_data(sources)
+        st.write(f"✅ 采集完成，共发现 {len(raw_data)} 条新内容。")
+
+        # 过滤掉已读文章
+        new_articles = [article for article in raw_data if article['link'] not in seen_links]
+        st.write(f"🗑️ 过滤掉 {len(raw_data) - len(new_articles)} 条旧内容，剩余 {len(new_articles)} 条新内容待筛选。")
+
+        if new_articles:
+            # 2. 关键词筛选
+            st.write("🔍 正在进行关键词筛选...")
+            final_list = keyword_filter_articles(new_articles, filter_keywords)
             status.update(label="处理完成！", state="complete", expanded=False)
 
-        # 3. 结果展示
-        if final_list:
-            st.subheader(f"🎯 AI 精选情报 ({len(final_list)})")
-            
-            # 模仿你 main.py 里的列表展示
-            for art in final_list:
-                with st.expander(f"【{art['source']}】{art['title']}", expanded=True):
-                    st.write(art['summary'][:300] + "...")
-                    st.link_button("阅读全文", art['link'])
+            # 3. 保存新文章到 Google Sheets
+            data_manager.save_new_articles(final_list)
+            st.write(f"💾 已将 {len(final_list)} 条精选内容保存到 Google Sheets。")
         else:
-            st.success("☕️ 暂无符合休闲游戏标签的新闻。")
+            final_list = []
+            status.update(label="没有新内容需要处理！", state="complete", expanded=False)
+            st.success("🎉 没有新的内容需要筛选和保存。")
+
+    # 3. 结果展示
+    if final_list:
+        st.subheader(f"🎯 关键词精选情报 ({len(final_list)})")
+        
+        for art in final_list:
+            with st.expander(f"【{art['source']}】{art['title']}", expanded=True):
+                st.write(art['summary'][:300] + "...")
+                st.link_button("阅读全文", art['link'])
+    else:
+        st.success("☕️ 暂无符合关键词标签的新闻。")
