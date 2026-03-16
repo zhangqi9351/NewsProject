@@ -1,0 +1,6 @@
+streamlit
+feedparser
+google-generativeai
+pyyaml
+pygtrans
+st-gsheets-connection

@@ -1,0 +1,27 @@
+
+# 资讯源配置
+rss_sources:
+  - name: "机核网"
+    url: "https://www.gcores.com/rss"
+  - name: "indienova"
+    url: "https://indienova.com/itunes/blog/rss"
+  - name: "触乐"
+    url: "http://www.chuapp.com/feed"
+  - name: "PocketGamer"
+    url: "https://www.pocketgamer.com/rss"
+  - name: "Gamezebo"
+    url: "https://www.gamezebo.com/feed/"
+
+# 关键词过滤配置 (不区分大小写)
+filter_keywords:
+  - "休闲"
+  - "益智"
+  - "消除"
+  - "模拟"
+  - "游戏"
+  - "Casual"
+  - "Puzzle"
+  - "Merge"
+  - "Hypercasual"
+  - "Simulator"
+  - "Game"
