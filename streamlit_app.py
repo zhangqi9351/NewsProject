@@ -5,6 +5,7 @@ import re
 from datetime import datetime, timedelta
 import yaml
 from data_manager import DataManager
+import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 
 def load_config(config_path):
@@ -53,64 +54,46 @@ st.caption("基于关键词筛选的自动化情报系统")
 with st.sidebar:
     st.header("配置中心")
     config = load_config('config.yaml')
-    sources = config['rss_sources']
-    filter_keywords = config['filter_keywords']
-
-    st.divider()
-    st.subheader("📡 当前监测源")
-    for s in sources:
-        st.text(f"• {s['name']}")
-
-    st.subheader("🔍 当前关键词")
-    for k in filter_keywords:
-        st.text(f"• {k}")
 
 # 主执行逻辑
-# 在应用启动时加载已有的数据
-conn = st.connection("gsheets", type=GSheetsConnection)
-data_manager = DataManager(conn)
+    # 在应用启动时加载已有的数据
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    data_manager = DataManager(conn)
 
-# 获取并显示已保存的文章
-saved_articles = data_manager.get_all_articles()
+    # 获取并显示已保存的文章
+    saved_articles = data_manager.get_all_articles()
 
-if saved_articles:
-    st.subheader(f"📖 已保存情报 ({len(saved_articles)})")
+    if saved_articles:
+        st.subheader(f"📖 已保存情报 ({len(saved_articles)})")
 
-    # 按日期降序排序
-    saved_articles.sort(key=lambda x: x.get('crawl_date', '0000-00-00'), reverse=True)
+        # 转换为 DataFrame 进行处理
+        df_articles = pd.DataFrame(saved_articles)
+        df_articles['crawl_date'] = pd.to_datetime(df_articles['crawl_date'])
+        df_articles = df_articles.sort_values(by='crawl_date', ascending=False)
 
-    # 按周和日进行分组
-    articles_by_week = {}
-    for article in saved_articles:
-        crawl_date_str = article.get('crawl_date')
-        if crawl_date_str:
-            crawl_date = datetime.strptime(crawl_date_str, '%Y-%m-%d').date()
-            # 计算周数 (周一开始)
-            # isocalendar() 返回 (year, week, weekday)
-            year, week_num, _ = crawl_date.isocalendar()
-            week_start = crawl_date - timedelta(days=crawl_date.weekday()) # 周一作为周的开始
+        # 添加年份和周数 (isocalendar返回 (year, week, weekday))
+        df_articles['year'] = df_articles['crawl_date'].dt.isocalendar().year
+        df_articles['week_of_year'] = df_articles['crawl_date'].dt.isocalendar().week
+        
+        # 按照年份和周数分组
+        for (year, week_of_year), week_group in df_articles.groupby(['year', 'week_of_year']):
+            # 获取该周的第一天作为周的标识
+            first_day_of_week = week_group['crawl_date'].min()
+            week_key = f"{year}年 第{week_of_year}周 ({first_day_of_week.strftime('%Y-%m-%d')})"
 
-            week_key = f"{year}年 第{week_num}周 ({week_start.strftime('%Y-%m-%d')})"
-
-            if week_key not in articles_by_week:
-                articles_by_week[week_key] = {}
-            
-            if crawl_date_str not in articles_by_week[week_key]:
-                articles_by_week[week_key][crawl_date_str] = []
-            articles_by_week[week_key][crawl_date_str].append(article)
-
-    # 展示数据
-    for week_key, daily_articles in articles_by_week.items():
-        with st.expander(f"📅 **{week_key}**", expanded=True):
-            # 按日期降序显示
-            for day_str in sorted(daily_articles.keys(), reverse=True):
-                st.markdown(f"##### {day_str}")
-                for art in daily_articles[day_str]:
-                    with st.expander(f"【{art['source']}】{art['title']}", expanded=False):
-                        st.write(art['summary'][:300] + "...")
-                        st.link_button("阅读全文", art['link'])
-else:
-    st.info("暂无已保存情报。点击下方按钮开始同步和筛选。")
+            with st.expander(f"📅 **{week_key}**", expanded=True):
+                st.info("💡 **AI 一周概要汇总分析 (占位符)**: 本周共抓取X条信息，其中包含Y条重要内容。主要趋势是...")
+                # 按日期降序显示
+                for day_date, day_group in week_group.groupby(df_articles['crawl_date'].dt.date):
+                    day_str = day_date.strftime('%Y-%m-%d')
+                    with st.expander(f"##### {day_str}", expanded=False): # 默认折叠每日内容
+                        st.info(f"💡 **AI 每日总结分析 (占位符)**: {day_str} 共抓取X条信息，其中...")
+                        for _, art in day_group.iterrows():
+                            with st.expander(f"【{art['source']}】{art['title']}", expanded=False):
+                                st.write(art['summary'][:300] + "...")
+                                st.link_button("阅读全文", art['link'])
+    else:
+        st.info("暂无已保存情报。点击下方按钮开始同步和筛选。")
 
 # 新文章筛选逻辑
 if st.button("🚀 立即同步并开始筛选", use_container_width=True):

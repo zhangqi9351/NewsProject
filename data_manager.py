@@ -9,7 +9,8 @@ class DataManager:
     def _get_all_worksheet_names(self):
         """获取 Google Sheet 中所有工作表的名称"""
         try:
-            return self.conn.list_worksheets()
+            # GSheetsConnection 内部封装了 gspread.Spreadsheet 对象，通过 _spreadsheet 属性访问
+            return [ws.title for ws in self.conn._spreadsheet.worksheets()]
         except Exception as e:
             st.warning(f"无法获取工作表列表: {e}")
             return []
