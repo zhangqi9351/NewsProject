@@ -2,7 +2,7 @@ import streamlit as st
 import feedparser
 import time
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 import yaml
 from data_manager import DataManager
 from streamlit_gsheets import GSheetsConnection
@@ -75,10 +75,40 @@ saved_articles = data_manager.get_all_articles()
 
 if saved_articles:
     st.subheader(f"📖 已保存情报 ({len(saved_articles)})")
-    for art in saved_articles:
-        with st.expander(f"【{art['source']}】{art['title']}", expanded=False):
-            st.write(art['summary'][:300] + "...")
-            st.link_button("阅读全文", art['link'])
+
+    # 按日期降序排序
+    saved_articles.sort(key=lambda x: x.get('crawl_date', '0000-00-00'), reverse=True)
+
+    # 按周和日进行分组
+    articles_by_week = {}
+    for article in saved_articles:
+        crawl_date_str = article.get('crawl_date')
+        if crawl_date_str:
+            crawl_date = datetime.strptime(crawl_date_str, '%Y-%m-%d').date()
+            # 计算周数 (周一开始)
+            # isocalendar() 返回 (year, week, weekday)
+            year, week_num, _ = crawl_date.isocalendar()
+            week_start = crawl_date - timedelta(days=crawl_date.weekday()) # 周一作为周的开始
+
+            week_key = f"{year}年 第{week_num}周 ({week_start.strftime('%Y-%m-%d')})"
+
+            if week_key not in articles_by_week:
+                articles_by_week[week_key] = {}
+            
+            if crawl_date_str not in articles_by_week[week_key]:
+                articles_by_week[week_key][crawl_date_str] = []
+            articles_by_week[week_key][crawl_date_str].append(article)
+
+    # 展示数据
+    for week_key, daily_articles in articles_by_week.items():
+        with st.expander(f"📅 **{week_key}**", expanded=True):
+            # 按日期降序显示
+            for day_str in sorted(daily_articles.keys(), reverse=True):
+                st.markdown(f"##### {day_str}")
+                for art in daily_articles[day_str]:
+                    with st.expander(f"【{art['source']}】{art['title']}", expanded=False):
+                        st.write(art['summary'][:300] + "...")
+                        st.link_button("阅读全文", art['link'])
 else:
     st.info("暂无已保存情报。点击下方按钮开始同步和筛选。")
 
