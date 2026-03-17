@@ -10,13 +10,18 @@ class DataManager:
         """获取 Google Sheet 中所有工作表的名称"""
         try:
             # 检查 _spreadsheet 属性是否已成功初始化
-            if not hasattr(self.conn, '_spreadsheet') or self.conn._spreadsheet is None:
-                st.error("⚠️ Google Sheets 连接未成功初始化。请检查以下事项：\n"
-                         "1. `/.streamlit/secrets.toml` 文件是否存在且配置正确，特别是 `spreadsheet` 的值。\n"
-                         "2. 您的 Google Sheet (ID: `1zeNUATluYY6cBOJf0RlWLLdzQ7TqLrdqh7itfvEoz8A`) 是否已与服务账户 `zhangqi-app-data@zhangqi-9351.iam.gserviceaccount.com` 共享，并赋予了 **“编辑者”** 权限。\n"
-                         "3. 您的 Google Cloud 项目 (`307755174569`) 中是否已启用 **Google Sheets API**。\n"
-                         "这些是连接失败的常见原因。")
+            if not hasattr(self.conn, '_spreadsheet'):
+                st.error("⚠️ GSheetsConnection 对象没有 '_spreadsheet' 属性。这通常意味着连接初始化失败，请检查您的 secrets.toml 配置。")
                 return []
+            
+            if self.conn._spreadsheet is None:
+                st.error("⚠️ GSheetsConnection 的 '_spreadsheet' 属性为 None。这通常意味着 Google Sheets 连接失败，请检查您的 secrets.toml 配置、Google Sheet 权限和 Google Sheets API 启用状态。")
+                return []
+            
+            # 调试信息：打印 _spreadsheet 的类型和值
+            st.info(f"DEBUG: Type of self.conn._spreadsheet: {type(self.conn._spreadsheet)}")
+            st.info(f"DEBUG: Value of self.conn._spreadsheet: {self.conn._spreadsheet}")
+
             return [ws.title for ws in self.conn._spreadsheet.worksheets()]
         except Exception as e:
             st.error(f"❌ 尝试获取工作表列表时发生错误: {e}\n"

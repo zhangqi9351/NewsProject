@@ -3,8 +3,6 @@
 rss_sources:
   - name: "机核网"
     url: "https://www.gcores.com/rss"
-  - name: "indienova"
-    url: "https://indienova.com/itunes/blog/rss"
   - name: "触乐"
     url: "http://www.chuapp.com/feed"
   - name: "PocketGamer"
