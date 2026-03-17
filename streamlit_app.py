@@ -52,7 +52,7 @@ st.caption("基于关键词筛选的自动化情报系统")
 
 # 侧边栏配置
 with st.sidebar:
-    st.header("配置中心")
+    st.header("日历")
     config = load_config('config.yaml')
 
 # 主执行逻辑
@@ -100,6 +100,11 @@ if st.button("🚀 立即同步并开始筛选", use_container_width=True):
     # 初始化数据管理器
     conn = st.connection("gsheets", type=GSheetsConnection)
     data_manager = DataManager(conn)
+
+    # 重新加载配置，确保 sources 和 filter_keywords 可用
+    config = load_config('config.yaml')
+    sources = config['rss_sources']
+    filter_keywords = config['filter_keywords']
 
     # 获取已处理的链接，用于去重
     seen_links = data_manager.get_seen_links()
