@@ -1,6 +1,21 @@
+# 基础框架
 streamlit
+
+# 数据处理 (核心缺失)
+pandas
+
+# 资讯抓取
 feedparser
+
+# AI 分析
 google-generativeai
+
+# 配置文件与翻译
 pyyaml
 pygtrans
+
+# 数据存储与连接
 st-gsheets-connection
+
+# 消息推送 (飞书/Webhook 必需)
+requests
