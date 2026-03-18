@@ -4,7 +4,9 @@ import pandas as pd
 from ui.components import render_header, render_sidebar, render_article_card, render_stats_info
 from modules.scraper import fetch_all_rss
 from streamlit_gsheets import GSheetsConnection
-
+class DataManager:
+    def __init__(self, st_connection):
+        self.conn = st_connection
 # 1. 初始化配置与连接
 with open('config.yaml', 'r', encoding='utf-8') as f:
     config = yaml.safe_load(f)
