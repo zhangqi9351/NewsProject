@@ -4,7 +4,7 @@ import time
 import re
 from datetime import datetime, timedelta
 import yaml
-from data_manager import DataManager
+from modules.data_manager import DataManager
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 
