@@ -15,7 +15,7 @@ pyyaml
 pygtrans
 
 # 数据存储与连接
-st-gsheets-connection
+st-gsheets-connection==0.0.36
 
 # 消息推送 (飞书/Webhook 必需)
 requests
