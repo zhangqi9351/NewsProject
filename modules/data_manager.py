@@ -1,50 +1,85 @@
-import streamlit as st
-import yaml
 import pandas as pd
-from ui.components import render_header, render_sidebar, render_article_card, render_stats_info
-from modules.scraper import fetch_all_rss
 from streamlit_gsheets import GSheetsConnection
+import streamlit as st
+
 class DataManager:
+    """
+    数据管理类：负责与 Google Sheets 进行交互，包括读取已处理链接和保存新文章。
+    注意：此类不应包含任何顶层执行逻辑。
+    """
     def __init__(self, st_connection):
+        # 接收从外部（主程序）传入的连接对象
         self.conn = st_connection
-# 1. 初始化配置与连接
-with open('config.yaml', 'r', encoding='utf-8') as f:
-    config = yaml.safe_load(f)
 
-conn = st.connection("gsheets", type=GSheetsConnection)
-dm = DataManager(conn)
+    def _get_all_worksheet_names(self):
+        """获取 Google Sheet 中所有工作表的名称"""
+        try:
+            # 基础连接有效性检查
+            if not hasattr(self.conn, '_spreadsheet') or self.conn._spreadsheet is None:
+                st.error("⚠️ Google Sheets 连接未就绪，请检查 secrets 配置或权限。")
+                return []
+            
+            return [ws.title for ws in self.conn._spreadsheet.worksheets()]
+        except Exception as e:
+            st.error(f"❌ 无法获取工作表列表: {e}")
+            return []
 
-# 2. 渲染基础 UI
-render_header()
-render_sidebar(config)
+    def _create_worksheet(self, worksheet_name):
+        """创建新的工作表"""
+        try:
+            # 调用连接对象的创建方法
+            self.conn.create_worksheet(worksheet_name=worksheet_name)
+            return True
+        except Exception as e:
+            st.error(f"❌ 创建工作表 {worksheet_name} 失败: {e}")
+            return False
 
-# 3. 核心功能操作区
-if st.button("🚀 开启今日情报自动化同步", use_container_width=True):
-    with st.status("正在执行工作流...") as status:
-        # --- 调用逻辑层 ---
-        raw_data = fetch_all_rss(config['rss_sources'])
-        seen_links = dm.get_seen_links()
-        new_items = [item for item in raw_data if item['link'] not in seen_links]
+    def get_seen_links(self):
+        """汇总所有工作表中的链接，用于去重"""
+        all_articles = self.get_all_articles()
+        return set(str(art.get('link', '')) for art in all_articles if 'link' in art)
+
+    def get_all_articles(self):
+        """读取所有工作表的数据"""
+        all_articles = []
+        ws_names = self._get_all_worksheet_names()
         
-        # 假设这里经过了关键词筛选
-        final_list = [item for item in new_items if any(k in item['title'] for k in config['filter_keywords'])]
+        for ws_name in ws_names:
+            try:
+                df = self.conn.read(worksheet=ws_name)
+                if not df.empty:
+                    # 统一日期字段
+                    if 'crawl_date' not in df.columns:
+                        df['crawl_date'] = ws_name
+                    all_articles.extend(df.to_dict(orient='records'))
+            except Exception as e:
+                st.warning(f"读取工作表 {ws_name} 失败: {e}")
         
-        if final_list:
-            dm.save_new_articles(final_list)
+        return all_articles
+
+    def save_new_articles(self, articles):
+        """将筛选出的文章存入以日期命名的新工作表"""
+        if not articles:
+            return
         
-        status.update(label="处理完成！", state="complete")
+        # 使用当前日期作为工作表名
+        today_date_str = pd.Timestamp.now().strftime('%Y-%m-%d')
 
-    # --- 调用视图层渲染结果 ---
-    render_stats_info(len(raw_data), len(final_list))
-    for art in final_list:
-        render_article_card(art, expanded=True)
+        # 检查并确保工作表存在
+        existing_ws = self._get_all_worksheet_names()
+        if today_date_str not in existing_ws:
+            if not self._create_worksheet(today_date_str):
+                return 
 
-# 4. 历史数据展示区
-st.divider()
-st.subheader("📜 历史情报回顾")
-history_data = dm.get_all_articles()
-if history_data:
-    df = pd.DataFrame(history_data)
-    df['crawl_date'] = pd.to_datetime(df['crawl_date'])
-    # 调用专门的渲染函数
-    # render_history_view(df)
+        # 写入数据
+        try:
+            new_df = pd.DataFrame(articles)
+            if 'crawl_date' not in new_df.columns:
+                new_df['crawl_date'] = today_date_str
+            
+            # 追加数据到 Google Sheets
+            self.conn.update(worksheet=today_date_str, data=new_df)
+        except Exception as e:
+            st.error(f"❌ 保存数据至 Google Sheets 失败: {e}")
+
+# --- 严禁在此处编写 dm = DataManager(...) 等调用代码 ---
