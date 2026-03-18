@@ -3,7 +3,6 @@ import yaml
 import pandas as pd
 from ui.components import render_header, render_sidebar, render_article_card, render_stats_info
 from modules.scraper import fetch_all_rss
-from modules.data_manager import DataManager
 from streamlit_gsheets import GSheetsConnection
 
 # 1. 初始化配置与连接
