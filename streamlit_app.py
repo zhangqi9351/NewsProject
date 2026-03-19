@@ -104,6 +104,6 @@ with tab_board:
     if selected_date:
         # 这里传入 Gemini API Key，用于在该页面生成全局总结
         api_key = st.secrets.get("GEMINI_API_KEY")
-        render_daily_dashboard(df_history, selected_date, api_key)
+        render_daily_dashboard(df_history, selected_date, api_key,dm)
     else:
         st.info("👈 请在左侧边栏选择一个日期开始浏览情报。")

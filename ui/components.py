@@ -35,7 +35,7 @@ def render_sidebar_navigation(df):
     )
     return selected_date_str
 
-def render_daily_dashboard(df, selected_date_str, api_key):
+def render_daily_dashboard(df, selected_date_str, api_key,dm):
     """渲染主界面的情报看板，包含 AI 总结和资讯卡片"""
     if df is None or df.empty or not selected_date_str:
         st.info("👈 请在左侧选择一个日期")
@@ -47,25 +47,26 @@ def render_daily_dashboard(df, selected_date_str, api_key):
 
     st.header(f"🔍 {selected_date_str} 深度看板")
 
-    # 2. 🤖 AI 深度总结区域 (核心功能)
+    # 1. 加载 AI 历史记录
+    ai_history = dm.get_ai_history()
+    
     with st.container(border=True):
-        st.subheader("🤖 AI 今日深度分析报告")
-        # 使用 Session State 缓存，避免重复消耗 API
-        cache_key = f"ai_report_{selected_date_str}"
+        st.subheader("🤖 AI 行业深度分析报告")
         
-        if cache_key not in st.session_state:
-            if st.button("✨ 立即生成今日行情总结", use_container_width=True):
-                with st.spinner("AI 正在分析今日所有情报，请稍候..."):
-                    # 动态导入分析函数
+        # 逻辑：如果数据库里已有该日期的总结
+        if selected_date_str in ai_history:
+            st.markdown(ai_history[selected_date_str])
+            st.success("✅ 本报告已存档，无需重复生成。")
+        else:
+            # 数据库里没有，才显示生成按钮
+            if st.button("✨ 立即生成今日行情总结 (限执行一次)", use_container_width=True):
+                with st.spinner("AI 正在分析并存档..."):
                     from modules.analyzer import get_ai_global_insight
                     report = get_ai_global_insight(day_data.to_dict('records'), api_key)
-                    st.session_state[cache_key] = report
                     
-        else:
-            st.markdown(st.session_state[cache_key])
-            if st.button("🔄 重新分析该日情报"):
-                del st.session_state[cache_key]
-                st.rerun()
+                    # 关键动作：存入数据库
+                    dm.save_ai_summary(selected_date_str, report)
+                    st.rerun() # 只有存完之后才刷新一次以显示内容
 
     st.divider()
 

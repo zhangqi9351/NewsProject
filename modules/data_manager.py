@@ -56,3 +56,33 @@ class DataManager:
             
         except Exception as e:
             st.error(f"保存至 Sheet1 失败: {e}")
+
+    # AI分析相关
+    def get_ai_history(self):
+        """读取 AI 表单中的所有历史总结"""
+        try:
+            df = self.conn.read(worksheet="ai", ttl=0)
+            if df is not None and not df.empty:
+                return df.set_index('crawl_date')['content'].to_dict()
+            return {}
+        except Exception:
+            return {}
+
+    def save_ai_summary(self, date_str, content):
+        """将 AI 总结存入 Google Sheets 的 'ai' 表单"""
+        try:
+            # 读取现有数据
+            existing_df = self.conn.read(worksheet="ai", ttl=0)
+            new_data = pd.DataFrame([{"crawl_date": date_str, "content": content}])
+            
+            if existing_df is not None and not existing_df.empty:
+                # 检查是否已存在该日期，存在则不覆盖（实现一次性功能）
+                if date_str in existing_df['crawl_date'].values:
+                    return
+                final_df = pd.concat([existing_df, new_data], ignore_index=True)
+            else:
+                final_df = new_data
+            
+            self.conn.update(worksheet="ai", data=final_df)
+        except Exception as e:
+            st.error(f"AI 总结保存失败: {e}")
