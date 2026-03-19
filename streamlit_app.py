@@ -37,7 +37,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 dm = DataManager(conn)
 
 # --- 3. 侧边栏导航逻辑 ---
-render_sidebar(config) # 显示基础配置（如关键词）
+render_sidebar(config,dm) 
 
 # 获取所有历史数据
 history_data = dm.get_all_articles()
@@ -52,13 +52,22 @@ selected_date = render_sidebar_navigation(df_history)
 
 # --- 4. 主界面布局 ---
 render_header()
+# 如果没有手动选日期，默认显示最新的一天
+if not selected_date and not df_history.empty:
+    selected_date = df_history['crawl_date'].dt.date.max().strftime('%Y-%m-%d')
 
-# 创建两个标签页：一个用于运行任务，一个用于看历史看板
-tab_sync, tab_board = st.tabs(["🚀 开启情报同步", "📊 历史情报看板"])
+if selected_date:
+    api_key = st.secrets.get("GEMINI_API_KEY")
+    # 直接渲染看板，不再需要 Tabs
+    render_daily_dashboard(df_history, selected_date, api_key, dm)
+else:
+    st.info("💡 数据库暂无数据，请点击左侧按钮执行首次抓取。")
+# # 创建两个标签页：一个用于运行任务，一个用于看历史看板
+# tab_sync, tab_board = st.tabs(["🚀 开启情报同步", "📊 历史情报看板"])
 
-with tab_sync:
-    st.subheader("同步控制台")
-    st.info("说明：此操作将根据关键词抓取所有匹配新闻，不进行 AI 过滤，保证情报完整。")
+# with tab_sync:
+#     st.subheader("同步控制台")
+#     st.info("说明：此操作将根据关键词抓取所有匹配新闻，不进行 AI 过滤，保证情报完整。")
     
     if st.button("🚀 执行全网 RSS 抓取并存入数据库", use_container_width=True):
         with st.status("正在执行同步工作流...", expanded=True) as status:
