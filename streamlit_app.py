@@ -103,6 +103,7 @@ with tab_board:
     # 根据侧边栏选中的日期，显示对应的卡片内容
     if selected_date:
         # 这里传入 Gemini API Key，用于在该页面生成全局总结
-        render_daily_dashboard(df_history, selected_date, config.get('gemini_api_key'))
+        api_key = st.secrets.get("GEMINI_API_KEY")
+        render_daily_dashboard(df_history, selected_date, api_key)
     else:
         st.info("👈 请在左侧边栏选择一个日期开始浏览情报。")
