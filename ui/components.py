@@ -60,7 +60,7 @@ def render_daily_dashboard(df, selected_date_str, api_key):
                     from modules.analyzer import get_ai_global_insight
                     report = get_ai_global_insight(day_data.to_dict('records'), api_key)
                     st.session_state[cache_key] = report
-                    st.rerun()
+                    
         else:
             st.markdown(st.session_state[cache_key])
             if st.button("🔄 重新分析该日情报"):
