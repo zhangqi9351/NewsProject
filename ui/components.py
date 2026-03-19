@@ -1,36 +1,62 @@
 import streamlit as st
 import pandas as pd
 
-def render_header():
-    st.title("🎮 移动游戏市场情报站")
-    st.caption("基于关键词与 AI 筛选的自动化系统")
+def render_sidebar_navigation(df):
+    """
+    在侧边栏渲染日期导航器
+    返回用户选择的日期日期
+    """
+    st.sidebar.header("📅 情报历程")
+    
+    if df.empty:
+        st.sidebar.info("暂无历史数据")
+        return None
 
-def render_sidebar(config):
-    with st.sidebar:
-        st.header("⚙️ 配置概览")
-        st.write(f"已加载 {len(config['rss_sources'])} 个资讯源")
-        st.write(f"监控关键词: {', '.join(config['filter_keywords'][:5])}...")
+    # 提取所有不重复的日期并倒序排列
+    all_dates = sorted(df['crawl_date'].dt.date.unique(), reverse=True)
+    date_options = [d.strftime("%Y-%m-%d") for d in all_dates]
+    
+    # 添加一个“最新”选项
+    selected_date_str = st.sidebar.radio(
+        "选择查看日期：",
+        options=date_options,
+        index=0
+    )
+    
+    return selected_date_str
 
-def render_article_card(article, expanded=False):
-    """渲染单条资讯卡片"""
-    with st.expander(f"【{article['source']}】{article['title']}", expanded=expanded):
-        st.write(article.get('summary', '')[:300] + "...")
-        st.link_button("阅读全文识别", article['link'])
-
-def render_stats_info(all_count, filtered_count):
-    """渲染扫描统计信息"""
-    col1, col2 = st.columns(2)
-    col1.metric("原始扫描", all_count)
-    col2.metric("精选情报", filtered_count)
-
-def render_history_view(df_articles):
-    """渲染历史数据折叠列表"""
-    if df_articles.empty:
-        st.info("暂无历史情报记录")
+def render_content_dashboard(df, selected_date_str):
+    """
+    主界面：显示指定日期的资讯卡片和 AI 总结
+    """
+    if df.empty or not selected_date_str:
         return
 
-    # 这里仅负责遍历并调用 card 渲染，不涉及数据库操作
-    for day, day_group in df_articles.groupby(df_articles['crawl_date'].dt.date):
-        st.markdown(f"#### 📅 {day}")
-        for _, art in day_group.iterrows():
-            render_article_card(art, expanded=False)
+    # 筛选出选中日期的数据
+    target_date = pd.to_datetime(selected_date_str).date()
+    day_data = df[df['crawl_date'].dt.date == target_date]
+
+    st.header(f"📑 {selected_date_str} 市场情报回顾")
+    
+    # 顶部放置一个 AI 总体摘要卡片（假设你以后会存储每日总评）
+    with st.container(border=True):
+        st.subheader("🤖 AI 本日核心洞察")
+        st.write(f"本日共录得 {len(day_data)} 条精选资讯。主要聚焦于：" + 
+                 "，".join(day_data['title'].iloc[:3].values) + " 等动态。")
+
+    st.divider()
+
+    # 渲染具体的资讯卡片
+    cols = st.columns(2) # 采用两列布局更像看板
+    for idx, (_, row) in enumerate(day_data.iterrows()):
+        with cols[idx % 2]:
+            with st.container(border=True):
+                st.markdown(f"**[{row['source']}]**")
+                st.markdown(f"#### {row['title']}")
+                st.caption(f"链接：{row['link']}")
+                # 如果你有 AI 总结字段，显示在这里
+                if 'ai_summary' in row and pd.notna(row['ai_summary']):
+                    st.info(f"✨ AI 总结：{row['ai_summary']}")
+                else:
+                    st.write(row.get('summary', '暂无摘要')[:200] + "...")
+                st.link_button("查看详情", row['link'], use_container_width=True)
