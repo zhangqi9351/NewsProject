@@ -4,59 +4,67 @@ import pandas as pd
 def render_sidebar_navigation(df):
     """
     在侧边栏渲染日期导航器
-    返回用户选择的日期日期
+    返回：用户选中的日期字符串 (YYYY-MM-DD)
     """
-    st.sidebar.header("📅 情报历程")
+    st.sidebar.markdown("---")
+    st.sidebar.header("📅 历史情报历程")
     
-    if df.empty:
-        st.sidebar.info("暂无历史数据")
+    if df is None or df.empty:
+        st.sidebar.info("暂无历史数据，请先执行同步。")
         return None
 
-    # 提取所有不重复的日期并倒序排列
+    # 1. 提取所有日期并去重倒序排列
+    # 假设 df['crawl_date'] 已经是 datetime 类型
     all_dates = sorted(df['crawl_date'].dt.date.unique(), reverse=True)
     date_options = [d.strftime("%Y-%m-%d") for d in all_dates]
     
-    # 添加一个“最新”选项
+    # 2. 侧边栏单选框导航
     selected_date_str = st.sidebar.radio(
-        "选择查看日期：",
+        "选择日期查看详情：",
         options=date_options,
-        index=0
+        index=0,
+        key="date_navigator"
     )
     
     return selected_date_str
 
-def render_content_dashboard(df, selected_date_str):
+def render_daily_dashboard(df, selected_date_str):
     """
-    主界面：显示指定日期的资讯卡片和 AI 总结
+    主界面：显示选中日期的资讯看板
     """
-    if df.empty or not selected_date_str:
+    if df is None or df.empty or not selected_date_str:
         return
 
-    # 筛选出选中日期的数据
+    # 筛选选中日期的数据
     target_date = pd.to_datetime(selected_date_str).date()
     day_data = df[df['crawl_date'].dt.date == target_date]
 
-    st.header(f"📑 {selected_date_str} 市场情报回顾")
+    st.header(f"🔍 {selected_date_str} 情报看板")
     
-    # 顶部放置一个 AI 总体摘要卡片（假设你以后会存储每日总评）
-    with st.container(border=True):
-        st.subheader("🤖 AI 本日核心洞察")
-        st.write(f"本日共录得 {len(day_data)} 条精选资讯。主要聚焦于：" + 
-                 "，".join(day_data['title'].iloc[:3].values) + " 等动态。")
+    # 顶部统计小卡片
+    col1, col2, col3 = st.columns(3)
+    col1.metric("精选条数", len(day_data))
+    col2.metric("来源网站", len(day_data['source'].unique()))
+    col3.metric("更新状态", "已同步")
 
-    st.divider()
+    st.markdown("---")
 
-    # 渲染具体的资讯卡片
-    cols = st.columns(2) # 采用两列布局更像看板
-    for idx, (_, row) in enumerate(day_data.iterrows()):
-        with cols[idx % 2]:
-            with st.container(border=True):
-                st.markdown(f"**[{row['source']}]**")
-                st.markdown(f"#### {row['title']}")
-                st.caption(f"链接：{row['link']}")
-                # 如果你有 AI 总结字段，显示在这里
-                if 'ai_summary' in row and pd.notna(row['ai_summary']):
-                    st.info(f"✨ AI 总结：{row['ai_summary']}")
-                else:
-                    st.write(row.get('summary', '暂无摘要')[:200] + "...")
-                st.link_button("查看详情", row['link'], use_container_width=True)
+    # 渲染资讯卡片流
+    if day_data.empty:
+        st.info("该日期暂无数据记录。")
+    else:
+        # 使用两列布局展示卡片
+        display_cols = st.columns(2)
+        for idx, (_, row) in enumerate(day_data.iterrows()):
+            with display_cols[idx % 2]:
+                # 使用 container 模拟卡片外框
+                with st.container(border=True):
+                    st.markdown(f"**【{row['source']}】**")
+                    st.subheader(row['title'])
+                    
+                    # 摘要展示（限制字数）
+                    summary = row.get('summary', '无摘要')
+                    st.write(summary[:150] + "..." if len(summary) > 150 else summary)
+                    
+                    # 底部按钮
+                    st.link_button("🔗 查看原文", row['link'], use_container_width=True)
