@@ -18,27 +18,22 @@ def render_sidebar(config):
 def render_sidebar_navigation(df):
     """渲染侧边栏日期导航"""
     st.sidebar.markdown("---")
-    st.sidebar.header("📅 情报历程")
+    st.sidebar.header("📅 历史情报历程")
     
     if df is None or df.empty:
         st.sidebar.info("暂无历史数据")
         return None
 
-    try:
-        # 提取日期并按倒序排列（最新的在前）
-        all_dates = sorted(df['crawl_date'].dt.date.unique(), reverse=True)
-        date_options = [d.strftime("%Y-%m-%d") for d in all_dates]
-        
-        selected_date_str = st.sidebar.radio(
-            "选择查看日期：",
-            options=date_options,
-            index=0,
-            key="date_nav_radio"
-        )
-        return selected_date_str
-    except Exception as e:
-        st.sidebar.error(f"日期解析出错: {e}")
-        return None
+    # 从 df['crawl_date'] 这一列里提取所有不重复的日期
+    all_dates = sorted(df['crawl_date'].dt.date.unique(), reverse=True)
+    date_options = [d.strftime("%Y-%m-%d") for d in all_dates]
+    
+    selected_date_str = st.sidebar.radio(
+        "选择查看日期：",
+        options=date_options,
+        index=0
+    )
+    return selected_date_str
 
 def render_daily_dashboard(df, selected_date_str, api_key):
     """渲染主界面的情报看板，包含 AI 总结和资讯卡片"""

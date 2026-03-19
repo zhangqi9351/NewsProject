@@ -5,37 +5,21 @@ import streamlit as st
 class DataManager:
     def __init__(self, st_connection):
         self.conn = st_connection
-
-    def _get_all_worksheet_names(self):
-        """获取所有工作表名称，增加容错处理"""
-        try:
-            # 尝试从连接对象中获取电子表格的所有 sheet 标题
-            # 如果插件版本变动，这里使用最稳健的内部访问方式
-            spreadsheet = self.conn._spreadsheet
-            return [ws.title for ws in spreadsheet.worksheets()]
-        except Exception:
-            # 如果获取失败，返回空列表，后续逻辑会尝试直接写入
-            return []
+        self.sheet_name = "Sheet1" # 固定使用 Sheet1
 
     def get_all_articles(self):
-        """读取所有有效日期工作表的数据"""
-        all_articles = []
-        ws_names = self._get_all_worksheet_names()
-        
-        # 过滤掉默认的 Sheet1
-        date_sheets = [n for n in ws_names if n != "Sheet1"]
-        
-        for ws_name in date_sheets:
-            try:
-                # 显式指定读取哪个工作表
-                df = self.conn.read(worksheet=ws_name)
-                if df is not None and not df.empty:
-                    # 统一加上日期标识
-                    df['crawl_date'] = ws_name
-                    all_articles.extend(df.to_dict(orient='records'))
-            except Exception:
-                continue
-        return all_articles
+        """从 Sheet1 读取所有数据"""
+        try:
+            df = self.conn.read(worksheet=self.sheet_name)
+            if df is not None and not df.empty:
+                # 确保日期列是 datetime 格式，方便后续筛选
+                if 'crawl_date' in df.columns:
+                    df['crawl_date'] = pd.to_datetime(df['crawl_date'])
+                return df.to_dict(orient='records')
+            return []
+        except Exception as e:
+            st.error(f"读取数据库失败: {e}")
+            return []
 
     def get_seen_links(self):
         """获取已存链接用于去重"""
@@ -44,24 +28,31 @@ class DataManager:
             return set()
         return set(str(a.get('link', '')) for a in articles)
 
-    def save_new_articles(self, articles):
-        """保存文章到以日期命名的工作表"""
-        if not articles:
+    def save_new_articles(self, new_articles):
+        """追加新文章到 Sheet1"""
+        if not new_articles:
             return
         
-        # 获取当前日期作为表名
-        today_str = pd.Timestamp.now().strftime('%Y-%m-%d')
-        
         try:
-            new_df = pd.DataFrame(articles)
-            # 确保包含日期列
-            new_df['crawl_date'] = today_str
+            # 1. 获取现有数据
+            existing_df = self.conn.read(worksheet=self.sheet_name)
             
-            # 【核心修复】：不再手动调用 create_worksheet
-            # 直接调用 update，大多数版本的 st-gsheets-connection 会自动处理或提示
-            # 如果报错，它会指引我们手动在 Google Sheets 里创建一个同名标签页
-            self.conn.update(worksheet=today_str, data=new_df)
-            st.toast(f"✅ 数据已成功同步至工作表: {today_str}")
+            # 2. 准备新数据
+            today_str = pd.Timestamp.now().strftime('%Y-%m-%d')
+            new_df = pd.DataFrame(new_articles)
+            new_df['crawl_date'] = today_str # 打上日期标签
+            
+            # 3. 合并新旧数据
+            if existing_df is not None and not existing_df.empty:
+                # 排除掉全是空的列或行
+                existing_df = existing_df.dropna(how='all', axis=0)
+                final_df = pd.concat([existing_df, new_df], ignore_index=True)
+            else:
+                final_df = new_df
+            
+            # 4. 全量覆盖回 Sheet1 (这是最稳妥的追加方式)
+            self.conn.update(worksheet=self.sheet_name, data=final_df)
+            st.toast(f"✅ 成功存入 {len(new_articles)} 条情报至 {self.sheet_name}")
+            
         except Exception as e:
-            st.error(f"❌ 自动保存失败。请手动在 Google Sheets 中新建一个名为 '{today_str}' 的标签页。")
-            st.info(f"错误详情: {e}")
+            st.error(f"保存至 Sheet1 失败: {e}")
