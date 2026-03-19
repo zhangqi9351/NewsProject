@@ -66,7 +66,7 @@ def render_daily_dashboard(df, selected_date_str, api_key,dm):
                     
                     # 关键动作：存入数据库
                     dm.save_ai_summary(selected_date_str, report)
-                    st.rerun() # 只有存完之后才刷新一次以显示内容
+                    #st.rerun() # 只有存完之后才刷新一次以显示内容
 
     st.divider()
 
