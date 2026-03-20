@@ -15,7 +15,7 @@ dm = DataManager(conn)
 render_sidebar(dm)
 
 # 4. 获取历史文章数据
-history_data = dm.get_all_articles()
+history_data = dm.get_all_articles(show_errors=True)
 df_history = pd.DataFrame(history_data)
 
 # 5. 处理日期逻辑

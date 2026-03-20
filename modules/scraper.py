@@ -9,12 +9,21 @@ def fetch_all_rss(sources):
         try:
             feed = feedparser.parse(source['url'])
             for entry in feed.entries:
-                all_articles.append({
-                    'title': entry.title,
-                    'link': entry.link,
-                    'summary': entry.get('summary', ''),
-                    'source': source['name']
-                })
+                try:
+                    title = getattr(entry, 'title', '').strip()
+                    link = getattr(entry, 'link', '').strip()
+
+                    if not title or not link:
+                        continue
+
+                    all_articles.append({
+                        'title': title,
+                        'link': link,
+                        'summary': entry.get('summary', ''),
+                        'source': source.get('name', '未知来源')
+                    })
+                except Exception as entry_error:
+                    print(f"⚠️ 文章解析失败，已跳过单条记录: {entry_error}")
         except Exception as e:
-            print(f"⚠️ 无法抓取 {source['name']}: {e}")
+            print(f"⚠️ 无法抓取 {source.get('name', '未知来源')}: {e}")
     return all_articles

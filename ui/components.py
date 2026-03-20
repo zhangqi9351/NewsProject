@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 
+def is_successful_ai_report(report):
+    return bool(report) and not report.startswith(("❌", "⚠️", "📅"))
+
 def render_header():
     st.title("🎮 游戏情报自动化站")
     st.caption("全量数据采集 | Gemini 2.0 深度总结")
@@ -24,7 +27,10 @@ def render_sidebar(dm):
                 seen_links = dm.get_seen_links()
                 
                 # 3. 仅根据链接去重
-                final_to_save = [item for item in raw_data if str(item['link']) not in seen_links]
+                final_to_save = [
+                    item for item in raw_data
+                    if str(item.get('link', '')).strip() and str(item.get('link', '')).strip() not in seen_links
+                ]
                 
                 if final_to_save:
                     dm.save_new_articles(final_to_save)
@@ -62,7 +68,7 @@ def render_daily_dashboard(df, selected_date_str, api_key, dm):
                 with st.spinner("AI 正在分析全量资讯..."):
                     from modules.analyzer import get_ai_global_insight
                     report = get_ai_global_insight(day_data.to_dict('records'), api_key)
-                    if "失败" not in report:
+                    if is_successful_ai_report(report):
                         dm.save_ai_summary(selected_date_str, report)
                         st.rerun()
                     else:
