@@ -9,6 +9,25 @@ class DataManager:
         self.ai_sheet = "ai"       
         self.feed_sheet = "feeds"   
 
+    @staticmethod
+    def _normalize_columns(df):
+        if df is None or df.empty:
+            return pd.DataFrame() if df is None else df
+        normalized = df.copy()
+        normalized.columns = [
+            str(col).replace('\ufeff', '').strip().lower().replace(' ', '_').replace('-', '_')
+            for col in normalized.columns
+        ]
+        return normalized
+
+    @staticmethod
+    def _is_truthy(value):
+        if pd.isna(value):
+            return False
+        return str(value).strip().lower() in {
+            'true', '1', 'yes', 'y', 'on', 'enabled', '是', '启用'
+        }
+
     def _read_sheet(self, worksheet, ttl=0, show_errors=False, error_prefix="读取数据失败"):
         """统一处理表格读取，避免连接异常直接打断整个页面。"""
         try:
@@ -16,8 +35,8 @@ class DataManager:
             if df is None:
                 return pd.DataFrame()
             if isinstance(df, pd.DataFrame):
-                return df
-            return pd.DataFrame(df)
+                return self._normalize_columns(df)
+            return self._normalize_columns(pd.DataFrame(df))
         except Exception as e:
             if show_errors:
                 st.error(f"{error_prefix}: {type(e).__name__}: {e}")
@@ -33,15 +52,36 @@ class DataManager:
                 error_prefix="读取 feeds 表失败",
             )
             if df.empty:
-                return []
-            if 'is_active' not in df.columns:
-                st.error("读取 feeds 表失败，请检查列名是否为 is_active")
+                st.warning("feeds 表已读取成功，但当前没有可识别的数据行")
                 return []
 
-            # 兼容性过滤：将所有内容转为字符串并大写，匹配包含 'TRUE' 的行
-            # 这样可以兼容布尔值、字符串和 Google 表格的勾选框
-            mask = df['is_active'].astype(str).str.upper().str.strip() == 'TRUE'
+            if 'url' not in df.columns:
+                st.error(f"feeds 表缺少 url 列，当前列为: {', '.join(map(str, df.columns))}")
+                return []
+            if 'is_active' not in df.columns:
+                st.error(f"feeds 表缺少 is_active 列，当前列为: {', '.join(map(str, df.columns))}")
+                return []
+
+            df = df.dropna(how='all').copy()
+            df['url'] = df['url'].fillna('').astype(str).str.strip()
+            df = df[df['url'] != ""]
+            if df.empty:
+                st.warning("feeds 表中没有有效的 url 配置")
+                return []
+
+            # 兼容 Google Sheets 勾选框、布尔值和字符串格式。
+            mask = df['is_active'].apply(self._is_truthy)
             active_feeds = df[mask]
+            if active_feeds.empty:
+                sample_values = ", ".join(sorted({str(v).strip() for v in df['is_active'].dropna().tolist()})) or "空"
+                st.warning(
+                    f"feeds 表已读取到 {len(df)} 条源，但没有识别出启用项。"
+                    f" is_active 当前值示例: {sample_values}"
+                )
+                return []
+
+            if 'name' not in active_feeds.columns:
+                active_feeds['name'] = '未命名源'
             return active_feeds.to_dict(orient='records')
         except Exception as e:
             st.error(f"读取 feeds 表失败: {type(e).__name__}: {e}")
