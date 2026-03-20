@@ -23,7 +23,9 @@ def render_sidebar(dm):
 
                 # 2. 抓取逻辑
                 from modules.scraper import fetch_all_rss
-                raw_data = fetch_all_rss(active_feeds)
+                result = fetch_all_rss(active_feeds)
+                raw_data = result['articles']
+                fetch_errors = result['errors']
                 seen_links = dm.get_seen_links()
                 
                 # 3. 仅根据链接去重
@@ -31,13 +33,26 @@ def render_sidebar(dm):
                     item for item in raw_data
                     if str(item.get('link', '')).strip() and str(item.get('link', '')).strip() not in seen_links
                 ]
-                
-                if final_to_save:
-                    dm.save_new_articles(final_to_save)
-                    status.update(label=f"✅ 已更新 {len(final_to_save)} 条", state="complete")
+
+                saved_count = dm.save_new_articles(final_to_save) if final_to_save else 0
+
+                if fetch_errors:
+                    st.warning("部分抓取源处理失败：\n\n" + "\n".join(f"- {msg}" for msg in fetch_errors[:5]))
+                    if len(fetch_errors) > 5:
+                        st.caption(f"另有 {len(fetch_errors) - 5} 条错误已省略")
+
+                if saved_count:
+                    status.update(
+                        label=f"✅ 已抓取 {len(raw_data)} 条，新增 {saved_count} 条",
+                        state="complete"
+                    )
                     st.rerun()
+                elif raw_data:
+                    status.update(label=f"☕ 抓取到 {len(raw_data)} 条，但均已存在", state="complete")
+                elif fetch_errors:
+                    status.update(label="⚠️ 抓取未产出有效资讯，请检查下方错误详情", state="error")
                 else:
-                    status.update(label="☕ 暂无新资讯", state="complete")
+                    status.update(label="☕ 本次未抓取到任何资讯", state="complete")
         st.markdown("---")
         st.info("💡 当前已开启全量采集模式")
 

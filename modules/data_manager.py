@@ -121,7 +121,7 @@ class DataManager:
 
     def save_new_articles(self, new_articles):
         if not new_articles:
-            return
+            return 0
         try:
             existing_df = self._read_sheet(worksheet=self.sheet_name, ttl=0)
             new_df = pd.DataFrame(new_articles)
@@ -141,20 +141,22 @@ class DataManager:
 
                 if new_df.empty:
                     st.toast("☕ 本次抓取结果均已存在，未新增数据")
-                    return
+                    return 0
 
                 final_df = pd.concat([existing_df, new_df], ignore_index=True)
             else:
                 if new_df.empty:
                     st.toast("☕ 本次抓取结果没有可保存的有效链接")
-                    return
+                    return 0
                 final_df = new_df
 
             saved_count = len(new_df)
             self.conn.update(worksheet=self.sheet_name, data=final_df)
             st.toast(f"✅ 成功存入 {saved_count} 条情报")
+            return saved_count
         except Exception as e:
             st.error(f"保存文章失败: {e}")
+            return 0
 
     def get_ai_history(self):
         try:
