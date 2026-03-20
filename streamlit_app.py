@@ -2,7 +2,14 @@ import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 from modules.data_manager import DataManager
-from ui.components import render_header, render_sidebar, render_sidebar_navigation, render_daily_dashboard
+from ui.components import (
+    render_header,
+    render_sidebar,
+    render_sidebar_navigation,
+    render_daily_dashboard,
+    render_overview_cards,
+    render_sync_feedback,
+)
 
 # 1. 页面基础配置
 st.set_page_config(page_title="游戏情报自动化站", layout="wide", page_icon="🎮")
@@ -32,6 +39,8 @@ else:
 
 # 6. 主界面头部渲染
 render_header()
+render_sync_feedback()
+render_overview_cards(df_history)
 
 # 7. 确定当前显示的日期内容
 if not selected_date and not df_history.empty:
