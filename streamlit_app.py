@@ -6,17 +6,18 @@ from ui.components import render_header, render_sidebar, render_sidebar_navigati
 
 st.set_page_config(page_title="游戏情报自动化站", layout="wide", page_icon="🎮")
 
+# 初始化连接
 conn = st.connection("gsheets", type=GSheetsConnection)
 dm = DataManager(conn)
 
-# 渲染侧边栏（传参已简化）
+# 侧边栏渲染（修正了传参，只传入 dm）
 render_sidebar(dm)
 
-# 获取数据
+# 数据加载与处理
 history_data = dm.get_all_articles()
 df_history = pd.DataFrame(history_data)
 
-# 日期选择
+# 日期导航
 selected_date = render_sidebar_navigation(df_history)
 render_header()
 
@@ -27,4 +28,4 @@ if selected_date:
     api_key = st.secrets.get("GEMINI_API_KEY")
     render_daily_dashboard(df_history, selected_date, api_key, dm)
 else:
-    st.info("👈 请点击左侧按钮开始抓取情报。")
+    st.info("👈 请点击左侧按钮执行全网抓取。")

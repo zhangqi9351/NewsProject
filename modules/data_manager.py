@@ -5,23 +5,26 @@ import streamlit as st
 class DataManager:
     def __init__(self, st_connection):
         self.conn = st_connection
-        self.sheet_name = "Sheet1" 
-        self.ai_sheet = "ai"       
-        self.feed_sheet = "feeds"   
+        self.sheet_name = "Sheet1" # 存储文章
+        self.ai_sheet = "ai"       # 存储AI总结
+        self.feed_sheet = "feeds"   # 存储订阅源配置
 
     def get_active_feeds(self):
         """从 feeds 工作表读取所有启用的 RSS 源"""
         try:
-            # ttl=0 确保实时读取表格修改
+            # ttl=0 确保实时获取表格的最新勾选状态
             df = self.conn.read(worksheet=self.feed_sheet, ttl=0)
             if df is None or df.empty:
                 return []
             
-            # 兼容性过滤：无论表格里是 TRUE、true 还是勾选框都能识别
-            active_feeds = df[df['is_active'].astype(str).str.upper().str.contains('TRUE')]
+            # 核心修复：将 is_active 列强制转换为字符串并转大写，匹配 'TRUE'
+            # 这样可以兼容布尔值、字符串和勾选框
+            mask = df['is_active'].astype(str).str.upper().str.strip() == 'TRUE'
+            active_feeds = df[mask]
+            
             return active_feeds.to_dict(orient='records')
         except Exception as e:
-            st.error(f"读取 feeds 表失败，请检查表名和列名: {e}")
+            st.error(f"读取 feeds 表失败: {e}")
             return []
 
     def get_all_articles(self):

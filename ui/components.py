@@ -11,7 +11,7 @@ def render_sidebar(dm):
         st.header("🚀 数据同步")
         if st.button("执行全网 RSS 抓取", use_container_width=True):
             with st.status("正在同步...", expanded=True) as status:
-                # 直接找管家拿数据库里的源
+                # 调用 data_manager 获取启用的源
                 active_feeds = dm.get_active_feeds()
                 
                 if not active_feeds:
@@ -22,7 +22,7 @@ def render_sidebar(dm):
                 raw_data = fetch_all_rss(active_feeds)
                 seen_links = dm.get_seen_links()
                 
-                # 全量保存，仅根据链接去重
+                # 全量保存，仅去重
                 final_to_save = [item for item in raw_data if item['link'] not in seen_links]
                 
                 if final_to_save:
@@ -32,7 +32,7 @@ def render_sidebar(dm):
                 else:
                     status.update(label="☕ 暂无新资讯", state="complete")
         st.markdown("---")
-        st.info("💡 当前为全量采集模式")
+        st.info("💡 当前已开启全量采集模式")
 
 def render_sidebar_navigation(df):
     st.sidebar.header("📅 历史记录")
