@@ -65,7 +65,7 @@ def render_daily_dashboard(df, selected_date_str, api_key, dm):
                     from modules.analyzer import get_ai_global_insight
                     report = get_ai_global_insight(day_data.to_dict('records'), api_key)
                     dm.save_ai_summary(selected_date_str, report)
-                    st.rerun()
+                    # st.rerun()
 
     st.divider()
     # 渲染卡片
