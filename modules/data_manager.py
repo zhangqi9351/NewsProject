@@ -5,14 +5,32 @@ import streamlit as st
 class DataManager:
     def __init__(self, st_connection):
         self.conn = st_connection
-        self.sheet_name = "Sheet1" # 固定使用 Sheet1
+        self.sheet_name = "Sheet1" # 存储文章的主表
+        self.ai_sheet = "ai"       # 存储AI总结的表
+        self.feed_sheet = "feeds"   # 新增：存储订阅源的表
+
+    def get_active_feeds(self):
+        """从 feeds 工作表读取所有启用的 RSS 源"""
+        try:
+            # 读取 feeds 表，ttl=0 确保每次点击都能拿到表格最新修改
+            df = self.conn.read(worksheet=self.feed_sheet, ttl=0)
+            if df is None or df.empty:
+                return []
+            
+            # 过滤出 is_active 为 TRUE 的行 (处理字符串和布尔值的兼容性)
+            mask = df['is_active'].astype(str).str.upper() == 'TRUE'
+            active_feeds = df[mask]
+            
+            return active_feeds.to_dict(orient='records')
+        except Exception as e:
+            st.error(f"读取订阅源配置失败: {e}")
+            return []
 
     def get_all_articles(self):
         """从 Sheet1 读取所有数据"""
         try:
-            df = self.conn.read(worksheet=self.sheet_name)
+            df = self.conn.read(worksheet=self.sheet_name, ttl="5m")
             if df is not None and not df.empty:
-                # 确保日期列是 datetime 格式，方便后续筛选
                 if 'crawl_date' in df.columns:
                     df['crawl_date'] = pd.to_datetime(df['crawl_date'])
                 return df.to_dict(orient='records')
@@ -32,36 +50,27 @@ class DataManager:
         """追加新文章到 Sheet1"""
         if not new_articles:
             return
-        
         try:
-            # 1. 获取现有数据
-            existing_df = self.conn.read(worksheet=self.sheet_name)
-            
-            # 2. 准备新数据
+            existing_df = self.conn.read(worksheet=self.sheet_name, ttl=0)
             today_str = pd.Timestamp.now().strftime('%Y-%m-%d')
             new_df = pd.DataFrame(new_articles)
-            new_df['crawl_date'] = today_str # 打上日期标签
+            new_df['crawl_date'] = today_str
             
-            # 3. 合并新旧数据
             if existing_df is not None and not existing_df.empty:
-                # 排除掉全是空的列或行
                 existing_df = existing_df.dropna(how='all', axis=0)
                 final_df = pd.concat([existing_df, new_df], ignore_index=True)
             else:
                 final_df = new_df
             
-            # 4. 全量覆盖回 Sheet1 (这是最稳妥的追加方式)
             self.conn.update(worksheet=self.sheet_name, data=final_df)
-            st.toast(f"✅ 成功存入 {len(new_articles)} 条情报至 {self.sheet_name}")
-            
+            st.toast(f"✅ 成功存入 {len(new_articles)} 条情报")
         except Exception as e:
             st.error(f"保存至 Sheet1 失败: {e}")
 
-    # AI分析相关
     def get_ai_history(self):
         """读取 AI 表单中的所有历史总结"""
         try:
-            df = self.conn.read(worksheet="ai", ttl=0)
+            df = self.conn.read(worksheet=self.ai_sheet, ttl=0)
             if df is not None and not df.empty:
                 return df.set_index('crawl_date')['content'].to_dict()
             return {}
@@ -69,20 +78,16 @@ class DataManager:
             return {}
 
     def save_ai_summary(self, date_str, content):
-        """将 AI 总结存入 Google Sheets 的 'ai' 表单"""
+        """将 AI 总结存入 Google Sheets"""
         try:
-            # 读取现有数据
-            existing_df = self.conn.read(worksheet="ai", ttl=0)
+            existing_df = self.conn.read(worksheet=self.ai_sheet, ttl=0)
             new_data = pd.DataFrame([{"crawl_date": date_str, "content": content}])
-            
             if existing_df is not None and not existing_df.empty:
-                # 检查是否已存在该日期，存在则不覆盖（实现一次性功能）
                 if date_str in existing_df['crawl_date'].values:
                     return
                 final_df = pd.concat([existing_df, new_data], ignore_index=True)
             else:
                 final_df = new_data
-            
-            self.conn.update(worksheet="ai", data=final_df)
+            self.conn.update(worksheet=self.ai_sheet, data=final_df)
         except Exception as e:
             st.error(f"AI 总结保存失败: {e}")
