@@ -6,7 +6,7 @@ def render_header():
     st.title("🎮 游戏情报自动化站")
     st.caption("全量数据采集 | Gemini 2.0 深度总结")
 
-def render_sidebar(config, dm):
+def render_sidebar(dm):
     """侧边栏：同步控制台"""
     with st.sidebar:
         st.header("🚀 数据同步")

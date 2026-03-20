@@ -12,14 +12,22 @@ class DataManager:
     def get_active_feeds(self):
         """从 feeds 工作表读取所有启用的 RSS 源"""
         try:
-            # 读取 feeds 表，ttl=0 确保每次点击都能拿到表格最新修改
+            # 读取 feeds 表，ttl=0 确保拿到最新修改
             df = self.conn.read(worksheet=self.feed_sheet, ttl=0)
+            
             if df is None or df.empty:
                 return []
             
-            # 过滤出 is_active 为 TRUE 的行 (处理字符串和布尔值的兼容性)
-            mask = df['is_active'].astype(str).str.upper() == 'TRUE'
-            active_feeds = df[mask]
+            # --- 强化兼容性过滤逻辑 ---
+            # 无论表格里填的是 TRUE, true, True 还是布尔勾选框，都能正确识别
+            def check_active(val):
+                s = str(val).strip().upper()
+                return s == 'TRUE' or s == '1' or s == '1.0'
+
+            # 应用过滤
+            active_feeds = df[df['is_active'].apply(check_all_active_cases)] # 如果报错请用下面这一行
+            # 或者用更简单直接的一行：
+            active_feeds = df[df['is_active'].astype(str).str.upper().str.contains('TRUE')]
             
             return active_feeds.to_dict(orient='records')
         except Exception as e:
