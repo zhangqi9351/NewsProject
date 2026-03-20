@@ -5,37 +5,26 @@ import streamlit as st
 class DataManager:
     def __init__(self, st_connection):
         self.conn = st_connection
-        self.sheet_name = "Sheet1" # 存储文章的主表
-        self.ai_sheet = "ai"       # 存储AI总结的表
-        self.feed_sheet = "feeds"   # 新增：存储订阅源的表
+        self.sheet_name = "Sheet1" 
+        self.ai_sheet = "ai"       
+        self.feed_sheet = "feeds"   
 
     def get_active_feeds(self):
         """从 feeds 工作表读取所有启用的 RSS 源"""
         try:
-            # 读取 feeds 表，ttl=0 确保拿到最新修改
+            # ttl=0 确保实时读取表格修改
             df = self.conn.read(worksheet=self.feed_sheet, ttl=0)
-            
             if df is None or df.empty:
                 return []
             
-            # --- 强化兼容性过滤逻辑 ---
-            # 无论表格里填的是 TRUE, true, True 还是布尔勾选框，都能正确识别
-            def check_active(val):
-                s = str(val).strip().upper()
-                return s == 'TRUE' or s == '1' or s == '1.0'
-
-            # 应用过滤
-            active_feeds = df[df['is_active'].apply(check_all_active_cases)] # 如果报错请用下面这一行
-            # 或者用更简单直接的一行：
+            # 兼容性过滤：无论表格里是 TRUE、true 还是勾选框都能识别
             active_feeds = df[df['is_active'].astype(str).str.upper().str.contains('TRUE')]
-            
             return active_feeds.to_dict(orient='records')
         except Exception as e:
-            st.error(f"读取订阅源配置失败: {e}")
+            st.error(f"读取 feeds 表失败，请检查表名和列名: {e}")
             return []
 
     def get_all_articles(self):
-        """从 Sheet1 读取所有数据"""
         try:
             df = self.conn.read(worksheet=self.sheet_name, ttl="5m")
             if df is not None and not df.empty:
@@ -43,40 +32,30 @@ class DataManager:
                     df['crawl_date'] = pd.to_datetime(df['crawl_date'])
                 return df.to_dict(orient='records')
             return []
-        except Exception as e:
-            st.error(f"读取数据库失败: {e}")
+        except Exception:
             return []
 
     def get_seen_links(self):
-        """获取已存链接用于去重"""
         articles = self.get_all_articles()
-        if not articles:
-            return set()
-        return set(str(a.get('link', '')) for a in articles)
+        return set(str(a.get('link', '')) for a in articles) if articles else set()
 
     def save_new_articles(self, new_articles):
-        """追加新文章到 Sheet1"""
-        if not new_articles:
-            return
+        if not new_articles: return
         try:
             existing_df = self.conn.read(worksheet=self.sheet_name, ttl=0)
-            today_str = pd.Timestamp.now().strftime('%Y-%m-%d')
             new_df = pd.DataFrame(new_articles)
-            new_df['crawl_date'] = today_str
-            
+            new_df['crawl_date'] = pd.Timestamp.now().strftime('%Y-%m-%d')
             if existing_df is not None and not existing_df.empty:
                 existing_df = existing_df.dropna(how='all', axis=0)
                 final_df = pd.concat([existing_df, new_df], ignore_index=True)
             else:
                 final_df = new_df
-            
             self.conn.update(worksheet=self.sheet_name, data=final_df)
             st.toast(f"✅ 成功存入 {len(new_articles)} 条情报")
         except Exception as e:
-            st.error(f"保存至 Sheet1 失败: {e}")
+            st.error(f"保存文章失败: {e}")
 
     def get_ai_history(self):
-        """读取 AI 表单中的所有历史总结"""
         try:
             df = self.conn.read(worksheet=self.ai_sheet, ttl=0)
             if df is not None and not df.empty:
@@ -86,13 +65,11 @@ class DataManager:
             return {}
 
     def save_ai_summary(self, date_str, content):
-        """将 AI 总结存入 Google Sheets"""
         try:
             existing_df = self.conn.read(worksheet=self.ai_sheet, ttl=0)
             new_data = pd.DataFrame([{"crawl_date": date_str, "content": content}])
             if existing_df is not None and not existing_df.empty:
-                if date_str in existing_df['crawl_date'].values:
-                    return
+                if date_str in existing_df['crawl_date'].values: return
                 final_df = pd.concat([existing_df, new_data], ignore_index=True)
             else:
                 final_df = new_data
