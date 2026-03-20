@@ -15,7 +15,12 @@ dm = DataManager(conn)
 render_sidebar(dm)
 
 # 4. 获取历史文章数据
-history_data = dm.get_all_articles(show_errors=True)
+try:
+    history_data = dm.get_all_articles(show_errors=True)
+except Exception as e:
+    st.error(f"初始化文章数据失败，已回退为空列表: {type(e).__name__}: {e}")
+    history_data = []
+
 df_history = pd.DataFrame(history_data)
 
 # 5. 处理日期逻辑
