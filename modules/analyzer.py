@@ -14,7 +14,7 @@ def get_ai_global_insight(articles, api_key, time_range="当日"):
     try:
         # 配置 AI
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-Flash-Lite')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
         # 构造阅读列表
         content_summary = ""
