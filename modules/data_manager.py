@@ -24,8 +24,12 @@ class DataManager:
     def _is_truthy(value):
         if pd.isna(value):
             return False
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value == 1
         return str(value).strip().lower() in {
-            'true', '1', 'yes', 'y', 'on', 'enabled', '是', '启用'
+            'true', '1', '1.0', 'yes', 'y', 'on', 'enabled', '是', '启用'
         }
 
     def _read_sheet(self, worksheet, ttl=0, show_errors=False, error_prefix="读取数据失败"):
