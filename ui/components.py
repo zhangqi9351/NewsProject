@@ -6,6 +6,13 @@ def is_successful_ai_report(report):
     return bool(report) and not report.startswith(("❌", "⚠️", "📅"))
 
 
+def is_debug_mode():
+    debug_value = st.query_params.get("debug", "0")
+    if isinstance(debug_value, list):
+        debug_value = debug_value[0] if debug_value else "0"
+    return str(debug_value).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def inject_global_styles():
     st.markdown(
         """
@@ -124,6 +131,12 @@ def render_sync_feedback():
     if not sync_state:
         return
 
+    mode_text = "自动同步" if sync_state.get("trigger") == "auto" else "手动同步"
+    if sync_state.get("raw_count") is not None:
+        st.caption(
+            f"{mode_text}结果：抓取 {sync_state.get('raw_count', 0)} 条，新增 {sync_state.get('saved_count', 0)} 条。"
+        )
+
     if sync_state.get("errors"):
         items = "".join(
             f'<div class="sync-error-item">• {msg}</div>'
@@ -142,6 +155,66 @@ def render_sync_feedback():
             """,
             unsafe_allow_html=True,
         )
+
+
+def execute_sync(dm, trigger="manual", show_status=True):
+    utc_today = pd.Timestamp.now(tz="UTC").strftime('%Y-%m-%d')
+
+    def _run_sync(status=None):
+        active_feeds = dm.get_active_feeds()
+        if not active_feeds:
+            st.session_state["sync_feedback"] = {
+                "trigger": trigger,
+                "errors": [],
+                "raw_count": 0,
+                "saved_count": 0,
+                "utc_date": utc_today,
+            }
+            if status is not None:
+                status.update(label="❌ feeds 表中没有启用的源，请检查 is_active 列", state="error")
+            return False
+
+        from modules.scraper import fetch_all_rss
+        result = fetch_all_rss(active_feeds)
+        raw_data = result['articles']
+        fetch_errors = result['errors']
+        seen_links = dm.get_seen_links()
+
+        final_to_save = [
+            item for item in raw_data
+            if str(item.get('link', '')).strip() and str(item.get('link', '')).strip() not in seen_links
+        ]
+
+        saved_count = dm.save_new_articles(final_to_save) if final_to_save else 0
+        dm.save_last_sync_date(utc_today)
+
+        st.session_state["sync_feedback"] = {
+            "trigger": trigger,
+            "errors": fetch_errors,
+            "raw_count": len(raw_data),
+            "saved_count": saved_count,
+            "utc_date": utc_today,
+        }
+
+        if status is not None:
+            if saved_count:
+                status.update(
+                    label=f"✅ 已抓取 {len(raw_data)} 条，新增 {saved_count} 条",
+                    state="complete"
+                )
+            elif raw_data:
+                status.update(label=f"☕ 抓取到 {len(raw_data)} 条，但均已存在", state="complete")
+            elif fetch_errors:
+                status.update(label="⚠️ 抓取未产出有效资讯，请检查主区错误详情", state="error")
+            else:
+                status.update(label="☕ 本次未抓取到任何资讯", state="complete")
+
+        return saved_count > 0
+
+    if show_status:
+        with st.status("正在从数据库读取订阅源...", expanded=True) as status:
+            return _run_sync(status)
+    return _run_sync()
 
 
 def render_overview_cards(df):
@@ -177,48 +250,13 @@ def render_sidebar(dm):
     """侧边栏：同步控制台"""
     with st.sidebar:
         st.header("🚀 数据同步")
-        if st.button("执行全网 RSS 抓取", use_container_width=True):
-            with st.status("正在从数据库读取订阅源...", expanded=True) as status:
-                # 1. 获取启用的源
-                active_feeds = dm.get_active_feeds()
-                
-                if not active_feeds:
-                    status.update(label="❌ feeds 表中没有启用的源，请检查 is_active 列", state="error")
-                    return
-
-                # 2. 抓取逻辑
-                from modules.scraper import fetch_all_rss
-                result = fetch_all_rss(active_feeds)
-                raw_data = result['articles']
-                fetch_errors = result['errors']
-                seen_links = dm.get_seen_links()
-                
-                # 3. 仅根据链接去重
-                final_to_save = [
-                    item for item in raw_data
-                    if str(item.get('link', '')).strip() and str(item.get('link', '')).strip() not in seen_links
-                ]
-
-                saved_count = dm.save_new_articles(final_to_save) if final_to_save else 0
-
-                st.session_state["sync_feedback"] = {
-                    "errors": fetch_errors,
-                    "raw_count": len(raw_data),
-                    "saved_count": saved_count,
-                }
-
-                if saved_count:
-                    status.update(
-                        label=f"✅ 已抓取 {len(raw_data)} 条，新增 {saved_count} 条",
-                        state="complete"
-                    )
+        st.caption("系统会按 UTC 日期每日自动执行一次抓取。")
+        if is_debug_mode():
+            with st.expander("调试入口", expanded=False):
+                st.caption("仅在 URL 带 `?debug=1` 时显示。")
+                if st.button("手动执行全网 RSS 抓取", use_container_width=True):
+                    execute_sync(dm, trigger="manual", show_status=True)
                     st.rerun()
-                elif raw_data:
-                    status.update(label=f"☕ 抓取到 {len(raw_data)} 条，但均已存在", state="complete")
-                elif fetch_errors:
-                    status.update(label="⚠️ 抓取未产出有效资讯，请检查下方错误详情", state="error")
-                else:
-                    status.update(label="☕ 本次未抓取到任何资讯", state="complete")
         st.markdown("---")
         st.caption("支持从 Google Sheets 维护抓取源，并自动去重入库。")
 

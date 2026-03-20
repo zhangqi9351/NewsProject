@@ -8,6 +8,7 @@ class DataManager:
         self.sheet_name = "Sheet1" 
         self.ai_sheet = "ai"       
         self.feed_sheet = "feeds"   
+        self.meta_last_sync_key = "__meta_last_sync_utc__"
 
     @staticmethod
     def _normalize_columns(df):
@@ -162,10 +163,46 @@ class DataManager:
         try:
             df = self._read_sheet(worksheet=self.ai_sheet, ttl=0)
             if not df.empty and {'crawl_date', 'content'}.issubset(df.columns):
+                df = df[~df['crawl_date'].astype(str).str.startswith("__meta_")]
                 return df.set_index('crawl_date')['content'].to_dict()
             return {}
         except Exception:
             return {}
+
+    def get_last_sync_date(self):
+        try:
+            df = self._read_sheet(worksheet=self.ai_sheet, ttl=0)
+            if df.empty or not {'crawl_date', 'content'}.issubset(df.columns):
+                return None
+            matched = df[df['crawl_date'].astype(str) == self.meta_last_sync_key]
+            if matched.empty:
+                return None
+            value = matched.iloc[-1]['content']
+            return str(value).strip() if pd.notna(value) else None
+        except Exception:
+            return None
+
+    def save_last_sync_date(self, date_str):
+        try:
+            existing_df = self._read_sheet(worksheet=self.ai_sheet, ttl=0)
+            meta_row = pd.DataFrame([{
+                "crawl_date": self.meta_last_sync_key,
+                "content": date_str,
+            }])
+
+            if existing_df.empty:
+                final_df = meta_row
+            else:
+                if 'crawl_date' not in existing_df.columns:
+                    existing_df['crawl_date'] = ""
+                if 'content' not in existing_df.columns:
+                    existing_df['content'] = ""
+                existing_df = existing_df[existing_df['crawl_date'].astype(str) != self.meta_last_sync_key]
+                final_df = pd.concat([existing_df, meta_row], ignore_index=True)
+
+            self.conn.update(worksheet=self.ai_sheet, data=final_df)
+        except Exception as e:
+            st.error(f"同步元数据保存失败: {e}")
 
     def save_ai_summary(self, date_str, content):
         try:

@@ -9,6 +9,7 @@ from ui.components import (
     render_daily_dashboard,
     render_overview_cards,
     render_sync_feedback,
+    execute_sync,
 )
 
 # 1. 页面基础配置
@@ -20,6 +21,16 @@ dm = DataManager(conn)
 
 # 3. 渲染侧边栏（注意：现在只传入 dm 一个参数）
 render_sidebar(dm)
+
+# 3.5 每日自动同步：按 UTC 日期每天执行一次。
+utc_today = pd.Timestamp.now(tz="UTC").strftime('%Y-%m-%d')
+last_sync_date = dm.get_last_sync_date()
+if (
+    last_sync_date != utc_today
+    and st.session_state.get("auto_sync_attempted_utc") != utc_today
+):
+    st.session_state["auto_sync_attempted_utc"] = utc_today
+    execute_sync(dm, trigger="auto", show_status=False)
 
 # 4. 获取历史文章数据
 try:
