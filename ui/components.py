@@ -2,16 +2,17 @@ import streamlit as st
 import pandas as pd
 
 def render_header():
+    """渲染页面标题"""
     st.title("🎮 游戏情报自动化站")
-    st.caption("数据库驱动采集 | Gemini 2.0 深度总结")
+    st.caption("全量数据采集 | Gemini 2.0 深度总结")
 
 def render_sidebar(config, dm):
     """侧边栏：同步控制台"""
     with st.sidebar:
         st.header("🚀 数据同步")
+        # 移除了关键词显示，直接进行全量同步
         if st.button("执行全网 RSS 抓取", use_container_width=True):
             with st.status("正在从数据库读取订阅源...", expanded=True) as status:
-                # 1. 改动点：从数据库获取源，而不是从 config 获取
                 active_feeds = dm.get_active_feeds()
                 
                 if not active_feeds:
@@ -19,30 +20,25 @@ def render_sidebar(config, dm):
                     return
 
                 from modules.scraper import fetch_all_rss
-                # 使用数据库里的源进行抓取
                 raw_data = fetch_all_rss(active_feeds)
                 
                 seen_links = dm.get_seen_links()
-                keywords = config.get('filter_keywords', [])
                 final_to_save = []
                 
+                # 【逻辑变更】：不再进行关键词比对，只进行去重检查
                 for item in raw_data:
                     if item['link'] not in seen_links:
-                        text = (item['title'] + item.get('summary', '')).lower()
-                        # 如果没有设置关键词，则全部抓取；否则进行过滤
-                        if not keywords or any(k.lower() in text for k in keywords):
-                            final_to_save.append(item)
+                        final_to_save.append(item)
                 
                 if final_to_save:
                     dm.save_new_articles(final_to_save)
-                    status.update(label=f"✅ 已更新 {len(final_to_save)} 条", state="complete")
+                    status.update(label=f"✅ 已全量更新 {len(final_to_save)} 条", state="complete")
                     st.rerun()
                 else:
                     status.update(label="☕ 暂无新资讯", state="complete")
         
         st.markdown("---")
-        with st.expander("🔍 当前监控关键词"):
-            st.write(", ".join(config.get('filter_keywords', [])))
+        st.info("💡 当前已开启“全量采集”模式，系统将记录所有订阅源的新闻动态。")
 
 def render_sidebar_navigation(df):
     st.sidebar.header("📅 历史记录")
@@ -71,7 +67,7 @@ def render_daily_dashboard(df, selected_date_str, api_key, dm):
                 if not api_key:
                     st.error("❌ 未检测到 API_KEY")
                     return
-                with st.spinner("AI 正在深度阅读中..."):
+                with st.spinner("AI 正在深度阅读全量资讯..."):
                     from modules.analyzer import get_ai_global_insight
                     report = get_ai_global_insight(day_data.to_dict('records'), api_key)
                     if "失败" not in report and "Quota" not in report:
@@ -83,13 +79,13 @@ def render_daily_dashboard(df, selected_date_str, api_key, dm):
 
     st.divider()
     if day_data.empty:
-        st.info("该日期暂无匹配资讯。")
+        st.info("该日期暂无资讯。")
     else:
+        # 使用列布局显示卡片
         cols = st.columns(2)
         for idx, (_, row) in enumerate(day_data.iterrows()):
             with cols[idx % 2]:
                 with st.container(border=True):
-                    # 显示来源分类标签（如果有的话）
                     cat = row.get('category', '资讯')
                     st.caption(f"📍 {row.get('source', '未知源')} | 🏷️ {cat}")
                     st.markdown(f"**{row['title']}**")
