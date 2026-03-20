@@ -8,11 +8,11 @@ pandas
 feedparser
 
 # AI 分析
-google-generativeai
+google-generativeai>=0.7.0
 
 # 配置文件与翻译
 pyyaml
-pygtrans
+# pygtrans
 
 # 数据存储与连接
 st-gsheets-connection
