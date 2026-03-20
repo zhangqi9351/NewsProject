@@ -37,21 +37,55 @@ def inject_global_styles():
             box-shadow: 0 12px 32px rgba(88, 72, 49, 0.08);
         }
         .hero-card {
-            padding: 1.6rem 1.7rem;
-            background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(249, 243, 229, 0.95));
-            margin-bottom: 1rem;
+            padding: 1.8rem 1.9rem;
+            background:
+                radial-gradient(circle at top left, rgba(255, 214, 153, 0.32), transparent 28%),
+                radial-gradient(circle at bottom right, rgba(120, 181, 167, 0.18), transparent 30%),
+                linear-gradient(135deg, rgba(255,255,255,0.94), rgba(248, 241, 226, 0.98));
+            margin-bottom: 1.15rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero-card::after {
+            content: "";
+            position: absolute;
+            inset: auto -40px -60px auto;
+            width: 180px;
+            height: 180px;
+            background: radial-gradient(circle, rgba(255, 206, 112, 0.18), transparent 66%);
+            pointer-events: none;
+        }
+        .hero-kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.32rem 0.72rem;
+            border-radius: 999px;
+            background: rgba(54, 84, 74, 0.08);
+            color: #49655d;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            margin-bottom: 0.9rem;
         }
         .hero-title {
-            font-size: 3rem;
-            line-height: 1.05;
-            font-weight: 800;
-            color: #2f3542;
+            font-size: 3.4rem;
+            line-height: 0.98;
+            font-weight: 900;
+            letter-spacing: -0.04em;
+            color: #26313b;
             margin: 0;
         }
         .hero-subtitle {
-            margin-top: 0.55rem;
-            color: #736b5e;
+            margin-top: 0.8rem;
+            color: #6d675f;
             font-size: 1.02rem;
+            max-width: 720px;
+        }
+        .hero-subtitle strong {
+            color: #8d6f3e;
+            font-weight: 800;
         }
         .summary-card {
             padding: 1rem 1.1rem;
@@ -107,6 +141,15 @@ def inject_global_styles():
             color: #5b352f;
             margin: 0.28rem 0;
         }
+        @media (max-width: 900px) {
+            .hero-title {
+                font-size: 2.3rem;
+                line-height: 1.02;
+            }
+            .hero-card {
+                padding: 1.3rem 1.2rem;
+            }
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -118,8 +161,9 @@ def render_header():
     st.markdown(
         """
         <section class="hero-card">
-            <p class="hero-title">🎮 游戏情报自动化站</p>
-            <p class="hero-subtitle">全量数据采集 · RSS 同步 · Gemini 深度总结</p>
+            <div class="hero-kicker">Signal Desk</div>
+            <p class="hero-title">游戏情报站</p>
+            <p class="hero-subtitle">面向发行、投放与市场团队的每日情报面板，聚合 <strong>RSS 同步</strong>、<strong>自动去重</strong> 与 <strong>Gemini 深度总结</strong>。</p>
         </section>
         """,
         unsafe_allow_html=True,

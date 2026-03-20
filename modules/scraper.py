@@ -1,4 +1,21 @@
 import feedparser
+import requests
+
+
+REQUEST_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; NewsProject/1.0; +https://streamlit.io)",
+    "Accept": "application/rss+xml, application/xml, text/xml, application/atom+xml, text/html;q=0.9, */*;q=0.8",
+}
+
+
+def _parse_feed(source_url):
+    feed = feedparser.parse(source_url, request_headers=REQUEST_HEADERS)
+    if getattr(feed, 'entries', []):
+        return feed
+
+    response = requests.get(source_url, headers=REQUEST_HEADERS, timeout=20)
+    response.raise_for_status()
+    return feedparser.parse(response.content)
 
 def fetch_all_rss(sources):
     """
@@ -17,7 +34,7 @@ def fetch_all_rss(sources):
             continue
 
         try:
-            feed = feedparser.parse(source_url, agent="NewsProject/1.0 (+Streamlit)")
+            feed = _parse_feed(source_url)
             if getattr(feed, 'bozo', 0) and not getattr(feed, 'entries', []):
                 bozo_error = getattr(feed, 'bozo_exception', '未知解析错误')
                 errors.append(f"{source_name}: RSS 解析失败 ({bozo_error})")
