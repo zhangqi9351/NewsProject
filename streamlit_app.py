@@ -2,6 +2,7 @@ import streamlit as st
 import yaml
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
+import google.generativeai as genai  # 必须有这一行
 
 from modules.data_manager import DataManager
 from ui.components import (
