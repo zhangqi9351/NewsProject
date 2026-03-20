@@ -6,7 +6,7 @@ def get_ai_global_insight(articles, api_key, time_range="当日"):
     对给定的文章列表进行全局总结。
     """
     if not api_key:
-        return "⚠️ 未配置 Gemini API Key，请在 config.yaml 中检查。"
+        return "⚠️ 未配置 Gemini API Key"
     
     if not articles:
         return "📅 该时间段内暂无资讯，无法生成总结。"
@@ -14,7 +14,7 @@ def get_ai_global_insight(articles, api_key, time_range="当日"):
     try:
         # 配置 AI
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
         
         # 构造阅读列表
         content_summary = ""

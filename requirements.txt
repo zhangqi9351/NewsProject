@@ -8,7 +8,7 @@ pandas
 feedparser
 
 # AI 分析
-google-generativeai>=0.7.0
+google-generativeai>=0.7.2
 
 # 配置文件与翻译
 pyyaml

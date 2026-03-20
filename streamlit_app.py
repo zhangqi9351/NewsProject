@@ -41,7 +41,22 @@ selected_date = render_sidebar_navigation(df_history)
 
 # 4. 主界面渲染
 render_header()
-
+st.write("--- 正在进行 API 深度自检 ---")
+try:
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    available_models = []
+    for m in genai.list_models():
+        if 'generateContent' in m.supported_generation_methods:
+            available_models.append(m.name)
+    
+    st.write("✅ 你的 API Key 能够合法访问的模型列表：")
+    st.json(available_models)
+    
+    if not available_models:
+        st.error("❌ 你的 Key 虽然配置成功，但没有任何模型的访问权限。请检查 GCP 权限设置。")
+except Exception as e:
+    st.error(f"❌ SDK 甚至无法获取模型列表，错误：{str(e)}")
+st.write("--- 自检结束 ---")
 # 如果用户没点日期，默认显示最新的一天
 if not selected_date and not df_history.empty:
     selected_date = df_history['crawl_date'].dt.date.max().strftime('%Y-%m-%d')
