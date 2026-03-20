@@ -10,20 +10,21 @@ def render_sidebar(dm):
     with st.sidebar:
         st.header("🚀 数据同步")
         if st.button("执行全网 RSS 抓取", use_container_width=True):
-            with st.status("正在同步...", expanded=True) as status:
-                # 调用 data_manager 获取启用的源
+            with st.status("正在从数据库读取订阅源...", expanded=True) as status:
+                # 1. 获取启用的源
                 active_feeds = dm.get_active_feeds()
                 
                 if not active_feeds:
-                    status.update(label="❌ feeds 表中没有启用的源", state="error")
+                    status.update(label="❌ feeds 表中没有启用的源，请检查 is_active 列", state="error")
                     return
 
+                # 2. 抓取逻辑
                 from modules.scraper import fetch_all_rss
                 raw_data = fetch_all_rss(active_feeds)
                 seen_links = dm.get_seen_links()
                 
-                # 全量保存，仅去重
-                final_to_save = [item for item in raw_data if item['link'] not in seen_links]
+                # 3. 仅根据链接去重
+                final_to_save = [item for item in raw_data if str(item['link']) not in seen_links]
                 
                 if final_to_save:
                     dm.save_new_articles(final_to_save)
@@ -68,12 +69,15 @@ def render_daily_dashboard(df, selected_date_str, api_key, dm):
                         st.error(report)
 
     st.divider()
-    cols = st.columns(2)
-    for idx, (_, row) in enumerate(day_data.iterrows()):
-        with cols[idx % 2]:
-            with st.container(border=True):
-                st.caption(f"📍 {row.get('source', '未知源')}")
-                st.markdown(f"**{row['title']}**")
-                with st.expander("查看摘要"):
-                    st.write(row.get('summary', '暂无内容'))
-                st.link_button("阅读原文", row.get('link', '#'), use_container_width=True)
+    if day_data.empty:
+        st.info("该日期暂无资讯。")
+    else:
+        cols = st.columns(2)
+        for idx, (_, row) in enumerate(day_data.iterrows()):
+            with cols[idx % 2]:
+                with st.container(border=True):
+                    st.caption(f"📍 {row.get('source', '未知源')}")
+                    st.markdown(f"**{row['title']}**")
+                    with st.expander("查看摘要"):
+                        st.write(row.get('summary', '暂无内容'))
+                    st.link_button("阅读原文", row.get('link', '#'), use_container_width=True)
